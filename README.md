@@ -4,6 +4,10 @@ created by: etruyj
 
 This is a simple script to simplify the process of CLI MFA login to an AWS account. This script requires the AWS CLI to be installed on the computer. 
 
+Basic command structure from the CLI is java -jar aws_mfa.jar --token ######
+Use -h or --help for help.
+
+
 AWS is queried for the Serial Number of the MFA device. This requires a policy in place to allow "iam:ListMFADevices". 
 
 AWS is then queried for temporary login credentials using the specified token and MFA Serial Number.
