@@ -8,10 +8,14 @@
 import com.google.gson.Gson;
 
 import java.io.BufferedReader;
+import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.InputStreamReader;
 import java.io.IOException;
+
 import java.lang.ProcessBuilder;
 import java.lang.Process;
+import java.lang.StringBuffer;
 import java.lang.StringBuilder;
 
 class BashProcessor
@@ -83,12 +87,16 @@ class BashProcessor
 		// In order to authenticate with MFA, we need the Serial Number of the MFA device.
 		// Fundementally, this is the Amazon Resource Number (ARN) for the device.
 		getMFADeviceLinux(aws_profile);
-		System.out.println(mfa_device.getSerialNumber());
 
 		// Using this information, we'll authenticate our token with AWS.
 		getMFACredentialsLinux(aws_profile, aws_token, mfa_device.getSerialNumber());
-		System.out.println(mfa_credentials.getSecretKey());
 	
+		// Update the aws credentials file
+		writeToFile(aws_profile, mfa_credentials.getAccessKey(), mfa_credentials.getSecretKey(), mfa_credentials.getSessionToken());
+
+		// Let the user know how to use mfa credentials.
+		System.out.println("Success. MFA Credentials were obtained. MFA access can be achieved with the " + aws_profile + "_mfa profile.");
+
 		// !!!! NOT VALID !!!!
 		// Using global vars in BASH doesn't work if a default profile
 		// is set. As this code anticipates the conditition, this is not
@@ -181,4 +189,91 @@ class BashProcessor
 		executeProcess(processor);
 	}
 
+	private void writeToFile(String aws_profile, String aws_access_key, String aws_secret_key, String aws_session_token)
+	{
+		// This updates the credentials file with the temporary access
+		// credentials provided by AWS. It searches for a field with
+		// the profile followed but _mfa. If that field isn't found,
+		// new text is appended to the file.
+
+		try
+		{
+			Boolean updatingCredentials = false;
+			Boolean credentialsUpdated = false;
+			int lineCounter = 0; // Track the number of lines to filter out.
+			String profileTitle = "[" + aws_profile + "_mfa]";
+			String filePath = System.getProperty("user.home") + "/.aws/credentials";
+
+			BufferedReader file = new BufferedReader(new FileReader(filePath));
+			StringBuffer inputBuffer = new StringBuffer();
+			String line;
+
+			while ((line = file.readLine()) != null)
+			{
+				if(line.equals(profileTitle))
+				{
+					updatingCredentials = true;
+				}
+
+				if(!updatingCredentials)
+				{
+					inputBuffer.append(line);
+					inputBuffer.append('\n');
+				}
+				else
+				{
+					switch (lineCounter)
+					{
+						case 0:
+							inputBuffer.append(profileTitle);
+							break;
+						case 1:
+							inputBuffer.append("aws_access_key_id = " + aws_access_key);
+							break;
+						case 2:
+							inputBuffer.append("aws_secret_access_key = " + aws_secret_key);
+							break;
+						case 3:
+							inputBuffer.append("aws_session_token = " + aws_session_token);
+							break;
+					}
+					inputBuffer.append('\n');
+					lineCounter++;
+					
+					// Stop filtering out inputs once we complete the update.
+					if(lineCounter==4)
+					{
+						updatingCredentials = false;
+						credentialsUpdated = true;
+					}
+				}
+			}
+
+			if(!credentialsUpdated)
+			{
+				inputBuffer.append('\n');
+				inputBuffer.append(profileTitle);
+				inputBuffer.append('\n');
+				inputBuffer.append("aws_access_key_id = " + aws_access_key);
+				inputBuffer.append('\n');
+				inputBuffer.append("aws_secret_access_key = " + aws_secret_key);
+				inputBuffer.append('\n');
+				inputBuffer.append("aws_session_token = " + aws_session_token);
+				inputBuffer.append('\n');
+			}
+
+			file.close();
+			String outputString = inputBuffer.toString();
+
+			// Write the new file back to the original location.
+			FileOutputStream outFile = new FileOutputStream(filePath);
+			outFile.write(outputString.getBytes());
+			outFile.close();
+
+		}
+		catch(Exception e)
+		{
+			System.out.println(e);
+		}
+	}
 }
