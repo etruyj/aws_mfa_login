@@ -26,7 +26,16 @@ public class aws_mfa_login
 		}
 		else
 		{
-			bp.mfaLoginLinux(cmds.getAwsProfile(), cmds.getAwsToken());
+			if(System.getProperty("os.name").substring(0, 7).equals("Windows"))
+			{
+				// Execute Windows Commands
+				bp.mfaLoginWindows(cmds.getAwsProfile(), cmds.getAwsToken());
+			}
+			else
+			{
+				// Execute Linux/MacOs Commands
+				bp.mfaLoginLinux(cmds.getAwsProfile(), cmds.getAwsToken());
+			}
 		}
 	}
 

@@ -24,6 +24,7 @@ class BashProcessor
 	private Gson gson = new Gson();
 	private MFADevice mfa_device = new MFADevice();
 	private MFACredentials mfa_credentials = new MFACredentials();
+	private String errorMessage = "none";
 
 	//============================================================
 	// Functions
@@ -64,15 +65,40 @@ class BashProcessor
 		processor.command("bash", "-c", cmd);
 
 		json = executeProcess(processor);
-
+		
 		mfa_credentials = gson.fromJson(json, MFACredentials.class);
 	}
 
+	public void getMFACredentialsWindows(String aws_profile, String aws_token, String mfa_arn)
+	{
+		String json = "none";
+		String cmd = "aws sts get-session-token --serial-number " + mfa_arn + " --token-code " + aws_token + " --profile " + aws_profile;
+
+		processor.command("cmd.exe", "/c", cmd);
+
+		json = executeProcess(processor);
+
+		mfa_credentials = gson.fromJson(json, MFACredentials.class);
+	}
+	
 	public void getMFADeviceLinux(String aws_profile)
 	{
 		String json = "none";
 		String cmd = "aws iam list-mfa-devices --profile " + aws_profile;
 		processor.command("bash", "-c", cmd);
+
+		json = executeProcess(processor);
+
+		mfa_device = gson.fromJson(json, MFADevice.class);
+
+		System.out.println(mfa_device.getSerialNumber());
+	}
+
+	public void getMFADeviceWindows(String aws_profile)
+	{
+		String json = "none";
+		String cmd = "aws iam list-mfa-devices --profile " + aws_profile;
+		processor.command("cmd.exe", "/c", cmd);
 
 		json = executeProcess(processor);
 
@@ -92,7 +118,8 @@ class BashProcessor
 		getMFACredentialsLinux(aws_profile, aws_token, mfa_device.getSerialNumber());
 	
 		// Update the aws credentials file
-		writeToFile(aws_profile, mfa_credentials.getAccessKey(), mfa_credentials.getSecretKey(), mfa_credentials.getSessionToken());
+		String filePath = System.getProperty("user.home") + "/.aws/credentials";
+		writeToFile(aws_profile, mfa_credentials.getAccessKey(), mfa_credentials.getSecretKey(), mfa_credentials.getSessionToken(), filePath);
 
 		// Let the user know how to use mfa credentials.
 		System.out.println("Success. MFA Credentials were obtained. MFA access can be achieved with the " + aws_profile + "_mfa profile.");
@@ -107,6 +134,25 @@ class BashProcessor
 
 		// Set the MFA Credentials as new Global Vars.
 		//setGlobalVarsLinux(mfa_credentials.getAccessKey(), mfa_credentials.getSecretKey(), mfa_credentials.getSessionToken());
+	}
+
+	public void mfaLoginWindows(String aws_profile, String aws_token)
+	{
+		// This is the primary function for executing these scripts in a Linux/MacOs environment.
+
+		// In order to authenticate with MFA, we need the Serial Number of the MFA device.
+		// Fundementally, this is the Amazon Resource Number (ARN) for the device.
+		getMFADeviceWindows(aws_profile);
+
+		// Using this information, we'll authenticate our token with AWS.
+		getMFACredentialsWindows(aws_profile, aws_token, mfa_device.getSerialNumber());
+	
+		// Update the aws credentials file
+		String filePath = System.getProperty("user.home") + "/.aws/credentials";
+		writeToFile(aws_profile, mfa_credentials.getAccessKey(), mfa_credentials.getSecretKey(), mfa_credentials.getSessionToken(), filePath);
+
+		// Let the user know how to use mfa credentials.
+		System.out.println("Success. MFA Credentials were obtained. MFA access can be achieved with the " + aws_profile + "_mfa profile.");
 	}
 
 	private void setAccessKeyLinux(String aws_access_key)
@@ -189,7 +235,7 @@ class BashProcessor
 		executeProcess(processor);
 	}
 
-	private void writeToFile(String aws_profile, String aws_access_key, String aws_secret_key, String aws_session_token)
+	private void writeToFile(String aws_profile, String aws_access_key, String aws_secret_key, String aws_session_token, String filePath)
 	{
 		// This updates the credentials file with the temporary access
 		// credentials provided by AWS. It searches for a field with
@@ -202,7 +248,6 @@ class BashProcessor
 			Boolean credentialsUpdated = false;
 			int lineCounter = 0; // Track the number of lines to filter out.
 			String profileTitle = "[" + aws_profile + "_mfa]";
-			String filePath = System.getProperty("user.home") + "/.aws/credentials";
 
 			BufferedReader file = new BufferedReader(new FileReader(filePath));
 			StringBuffer inputBuffer = new StringBuffer();
