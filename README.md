@@ -1,12 +1,17 @@
 # aws_mfa_login
 created by: etruyj
 
-
-This is a simple script to simplify the process of CLI MFA login to an AWS account. This script requires the AWS CLI to be installed on the computer. 
-
-Basic command structure from the CLI is java -jar aws_mfa.jar --token ######
+This is a simple JAVA script to simplify the process of CLI MFA login to an AWS account. It generally works with Linux, MacOS, and Windows although specific distro support may need to be included in the bash script to include specific OS support.
+ 
+Basic command structure from the CLI is aws_mfa --token ######
 Use -h or --help for help.
 
+Requirements:
+- Jave Runtime Environment
+- This script requires the AWS CLI to be installed on the computer. 
+- WINDOWS: An environmental variable attaching 'aws' to the path to the CLI exe is also required if it is not automatically configured on installation. Instructions can be found here: https://docs.aws.amazon.com/cli/latest/userguide/install-windows.html#awscli-install-windows-path
+
+Process:
 
 AWS is queried for the Serial Number of the MFA device. This requires a policy in place to allow "iam:ListMFADevices". 
 

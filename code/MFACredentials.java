@@ -7,7 +7,7 @@
 
 class MFACredentials
 {
-	AWSCredentials Credentials;
+	AWSCredentials Credentials = new AWSCredentials();
 
 	public String getAccessKey() { return Credentials.getAccessKey(); }
 	public String getSecretKey() { return Credentials.getSecretKey(); }

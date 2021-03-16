@@ -66,7 +66,18 @@ class BashProcessor
 
 		json = executeProcess(processor);
 		
-		mfa_credentials = gson.fromJson(json, MFACredentials.class);
+		// Check to see if a blank value was returned for error handling.
+		// Despite AWS CLI providing an error message in the event of a 
+		// failure it doesn't feed back into this code, so I have to make
+		// do with a blank response.
+		if(json.equals(""))
+		{
+			System.out.println("There was a problem validating the MFA token. Please verify the correct token was entered and proper AWS permissions are assigned to your account.");
+		}
+		else
+		{
+			mfa_credentials = gson.fromJson(json, MFACredentials.class);
+		}
 	}
 
 	public void getMFACredentialsWindows(String aws_profile, String aws_token, String mfa_arn)
@@ -78,7 +89,18 @@ class BashProcessor
 
 		json = executeProcess(processor);
 
-		mfa_credentials = gson.fromJson(json, MFACredentials.class);
+		// Check to see if a blank value was returned for error handling.
+		// Despite AWS CLI providing an error message in the event of a 
+		// failure it doesn't feed back into this code, so I have to make
+		// do with a blank response.
+		if(json.equals(""))
+		{
+			System.out.println("There was a problem validating the MFA token. Please verify the correct token was entered and proper AWS permissions are assigned to your account.");
+		}
+		else
+		{
+			mfa_credentials = gson.fromJson(json, MFACredentials.class);
+		}
 	}
 	
 	public void getMFADeviceLinux(String aws_profile)
@@ -88,10 +110,19 @@ class BashProcessor
 		processor.command("bash", "-c", cmd);
 
 		json = executeProcess(processor);
-
-		mfa_device = gson.fromJson(json, MFADevice.class);
-
-		System.out.println(mfa_device.getSerialNumber());
+	
+		// Check to see if a blank value was returned for error handling.
+		// Despite AWS CLI providing an error message in the event of a 
+		// failure it doesn't feed back into this code, so I have to make
+		// do with a blank response.
+		if(json.equals(""))
+		{
+			System.out.println("There was an error retrieving your MFA devices frow AWS. Please ensure one is configured for " + aws_profile + " and adequate permissions are assigned.");
+		}
+		else
+		{
+			mfa_device = gson.fromJson(json, MFADevice.class);
+		}
 	}
 
 	public void getMFADeviceWindows(String aws_profile)
@@ -101,9 +132,19 @@ class BashProcessor
 		processor.command("cmd.exe", "/c", cmd);
 
 		json = executeProcess(processor);
-
-		mfa_device = gson.fromJson(json, MFADevice.class);
-
+		
+		// Check to see if a blank value was returned for error handling.
+		// Despite AWS CLI providing an error message in the event of a 
+		// failure it doesn't feed back into this code, so I have to make
+		// do with a blank response.
+		if(json.equals(""))
+		{
+			System.out.println("There was an error retrieving your MFA devices from AWS. Please ensure one is configured for " + aws_profile + " and adequate permissions are assigned.");
+		}
+		else
+		{
+			mfa_device = gson.fromJson(json, MFADevice.class);
+		}
 	}
 
 	public void mfaLoginLinux(String aws_profile, String aws_token)
@@ -115,15 +156,19 @@ class BashProcessor
 		getMFADeviceLinux(aws_profile);
 
 		// Using this information, we'll authenticate our token with AWS.
-		getMFACredentialsLinux(aws_profile, aws_token, mfa_device.getSerialNumber());
-	
+		// First verify an mfa serial number was returned in the last call.
+		if(!mfa_device.getSerialNumber().equals("none"))
+		{
+			getMFACredentialsLinux(aws_profile, aws_token, mfa_device.getSerialNumber());
+		}
+
 		// Update the aws credentials file
-		String filePath = System.getProperty("user.home") + "/.aws/credentials";
-		writeToFile(aws_profile, mfa_credentials.getAccessKey(), mfa_credentials.getSecretKey(), mfa_credentials.getSessionToken(), filePath);
-
-		// Let the user know how to use mfa credentials.
-		System.out.println("Success. MFA Credentials were obtained. MFA access can be achieved with the " + aws_profile + "_mfa profile.");
-
+		// First verify a session token was retrieved from AWS in the last call.
+		if(!mfa_credentials.getSessionToken().equals("none")&&!mfa_device.getSerialNumber().equals("none"))
+		{
+			String filePath = System.getProperty("user.home") + "/.aws/credentials";
+			writeToFile(aws_profile, mfa_credentials.getAccessKey(), mfa_credentials.getSecretKey(), mfa_credentials.getSessionToken(), filePath);
+		}
 		// !!!! NOT VALID !!!!
 		// Using global vars in BASH doesn't work if a default profile
 		// is set. As this code anticipates the conditition, this is not
@@ -145,14 +190,19 @@ class BashProcessor
 		getMFADeviceWindows(aws_profile);
 
 		// Using this information, we'll authenticate our token with AWS.
-		getMFACredentialsWindows(aws_profile, aws_token, mfa_device.getSerialNumber());
-	
-		// Update the aws credentials file
-		String filePath = System.getProperty("user.home") + "/.aws/credentials";
-		writeToFile(aws_profile, mfa_credentials.getAccessKey(), mfa_credentials.getSecretKey(), mfa_credentials.getSessionToken(), filePath);
+		// First test to see if AWS returned an MFA serial from the prior call.
+		if(!mfa_device.getSerialNumber().equals("none"))
+		{
+			getMFACredentialsWindows(aws_profile, aws_token, mfa_device.getSerialNumber());
+		}
 
-		// Let the user know how to use mfa credentials.
-		System.out.println("Success. MFA Credentials were obtained. MFA access can be achieved with the " + aws_profile + "_mfa profile.");
+		// Update the aws credentials file
+		// First verify a session token was retrieved from AWS in the last call.
+		if(!mfa_credentials.getSessionToken().equals("none"))
+		{
+			String filePath = System.getProperty("user.home") + "/.aws/credentials";
+			writeToFile(aws_profile, mfa_credentials.getAccessKey(), mfa_credentials.getSecretKey(), mfa_credentials.getSessionToken(), filePath);
+		}
 	}
 
 	private void setAccessKeyLinux(String aws_access_key)
@@ -314,7 +364,11 @@ class BashProcessor
 			FileOutputStream outFile = new FileOutputStream(filePath);
 			outFile.write(outputString.getBytes());
 			outFile.close();
-
+			
+			// Print success completion message  here as there is no 
+			// way to test for success in the calling function.
+			// Let the user know how to use mfa credentials.
+			System.out.println("Success. MFA Credentials were obtained. MFA access can be achieved with the " + aws_profile + "_mfa profile.");
 		}
 		catch(Exception e)
 		{
